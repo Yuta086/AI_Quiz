@@ -70,36 +70,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
-    // FIX: Use `process.env.API_KEY` as per the coding guidelines.
-    // This also helps resolve build errors related to missing Vite client types.
-    // Assuming `process.env.API_KEY` is available in the execution environment.
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      setAiInstance(ai);
-    } catch (e) {
-      console.error("Failed to initialize GoogleGenAI:", e);
-      setAiInstance(null);
-    }
-  }, []);
-  
-  useEffect(() => {
-      // FIX: Cast `import.meta` to `any` to work around missing Vite client types
-      // which caused 'Property 'env' does not exist' and 'Cannot find type definition file' errors.
-      const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-      const supabaseKey = (import.meta as any).env.VITE_SUPABASE_KEY;
+    // FIX: Cast `import.meta` to `any` to work around missing Vite client types.
+    // This allows accessing Vite's environment variables (`import.meta.env`) on the client-side.
+    const env = (import.meta as any).env;
 
-      if (supabaseUrl && supabaseKey) {
-          try {
-              const client = createClient(supabaseUrl, supabaseKey);
-              setSupabaseClient(client);
-          } catch(e) {
-              console.error("Failed to initialize Supabase client:", e);
-              setError("Supabaseへの接続情報が正しくありません。");
-              setSupabaseClient(null);
-          }
-      } else {
-          setSupabaseClient(null);
-      }
+    // Initialize Gemini AI client
+    const geminiApiKey = env.VITE_GEMINI_API_KEY;
+    if (geminiApiKey) {
+        try {
+            const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+            setAiInstance(ai);
+        } catch (e) {
+            console.error("Failed to initialize GoogleGenAI:", e);
+            setAiInstance(null);
+        }
+    } else {
+        console.warn("VITE_GEMINI_API_KEY is not set in environment variables.");
+        setAiInstance(null);
+    }
+    
+    // Initialize Supabase client
+    const supabaseUrl = env.VITE_SUPABASE_URL;
+    const supabaseKey = env.VITE_SUPABASE_KEY;
+    if (supabaseUrl && supabaseKey) {
+        try {
+            const client = createClient(supabaseUrl, supabaseKey);
+            setSupabaseClient(client);
+        } catch(e) {
+            console.error("Failed to initialize Supabase client:", e);
+            setError("Supabaseへの接続情報が正しくありません。");
+            setSupabaseClient(null);
+        }
+    } else {
+        setSupabaseClient(null);
+    }
   }, []);
 
   const isSupabaseConfigured = !!supabaseClient;
