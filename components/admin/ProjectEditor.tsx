@@ -64,7 +64,7 @@ const EditableQuestion: React.FC<{
 const ProjectEditor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getProjectById, createProject, updateProject, aiInstance, isApiKeySet } = useAppContext();
+    const { getProjectById, createProject, updateProject, aiInstance } = useAppContext();
     
     const [name, setName] = useState('');
     const [transcript, setTranscript] = useState('');
@@ -95,8 +95,9 @@ const ProjectEditor: React.FC = () => {
     }, [id, getProjectById]);
 
     const handleGenerateQuiz = async () => {
-        if (!isApiKeySet) {
-            setError('クイズを生成するには、まず管理画面ヘッダーからGemini APIキーを設定してください。');
+        // FIX: Check for aiInstance directly and update error message.
+        if (!aiInstance) {
+            setError('クイズを生成するには、Gemini APIキーを環境変数に設定する必要があります。');
             return;
         }
         if (!transcript) {

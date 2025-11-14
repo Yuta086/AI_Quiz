@@ -32,7 +32,8 @@ export const generateQuizFromTranscript = async (
   questionCount: number = 5
 ): Promise<Omit<Question, 'id'>[]> => {
   if (!aiInstance) {
-    throw new Error("Gemini APIキーが設定されていません。管理画面から設定してください。");
+    // FIX: Update error message to align with environment variable-based API key setup.
+    throw new Error("Gemini APIキーが設定されていません。環境変数を確認してください。");
   }
   
   try {

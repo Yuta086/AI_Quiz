@@ -1,7 +1,7 @@
+/// <reference types="vite/client" />
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Project, Submission, Attempt, Question } from '../types';
 import * as supabaseService from '../services/supabaseService';
-import useLocalStorage from '../hooks/useLocalStorage';
 import { GoogleGenAI } from '@google/genai';
 import { SupabaseClient, createClient } from '@supabase/supabase-js';
 
@@ -14,9 +14,6 @@ interface AppContextType {
   error: string | null;
   
   // Gemini API
-  apiKey: string;
-  setApiKey: (key: string) => void;
-  isApiKeySet: boolean;
   aiInstance: GoogleGenAI | null;
 
   // Supabase
@@ -50,7 +47,7 @@ const SupabaseErrorScreen: React.FC = () => {
                     Supabaseの接続情報が環境変数に設定されていません。アプリケーションをデプロイする管理者にご連絡ください。
                 </p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                    (開発者向け: <code>SUPABASE_URL</code> と <code>SUPABASE_KEY</code> を環境変数に設定してください。)
+                    (開発者向け: <code>VITE_SUPABASE_URL</code> と <code>VITE_SUPABASE_KEY</code> を環境変数に設定してください。)
                 </p>
             </div>
         </div>
@@ -67,16 +64,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [error, setError] = useState<string | null>(null);
 
   // Gemini API State
-  const [apiKey, setApiKey] = useLocalStorage<string>('gemini_api_key', '');
   const [aiInstance, setAiInstance] = useState<GoogleGenAI | null>(null);
 
   // Supabase State
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
-    if (apiKey) {
+    // FIX: Use `process.env.API_KEY` as per guidelines and remove API key management from UI.
+    // This assumes API_KEY is correctly exposed to the client environment.
+    if (process.env.API_KEY) {
       try {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         setAiInstance(ai);
       } catch (e) {
         console.error("Failed to initialize GoogleGenAI:", e);
@@ -85,13 +83,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setAiInstance(null);
     }
-  }, [apiKey]);
+  }, []);
   
-  const isApiKeySet = !!apiKey && !!aiInstance;
-
   useEffect(() => {
-      const supabaseUrl = process.env.SUPABASE_URL;
-      const supabaseKey = process.env.SUPABASE_KEY;
+      // FIX: Added a triple-slash directive at the top of the file to provide types for import.meta.env.
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
 
       if (supabaseUrl && supabaseKey) {
           try {
@@ -226,7 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const value = {
     users, projects, submissions, attempts, isLoading, error,
-    apiKey, setApiKey, isApiKeySet, aiInstance,
+    aiInstance,
     supabaseClient, isSupabaseConfigured,
     addUser, updateUser, deleteUser, replaceUsers,
     getProjectById, createProject, updateProject, deleteProject,
