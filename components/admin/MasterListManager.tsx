@@ -29,12 +29,16 @@ const MasterListManager: React.FC = () => {
         const newUsers: Omit<User, 'id'>[] = lines.map(name => ({ name }));
         
         setIsSubmitting(true);
-        await replaceUsers(newUsers);
-        setMessage(`正常に${newUsers.length}人のユーザーをアップロードし、更新しました。マスター名簿は上書きされました。`);
+        const resultMessage = await replaceUsers(newUsers);
+        setMessage(resultMessage);
       } catch (error) {
           setMessage('エラー: CSVファイルの解析または更新に失敗しました。');
       } finally {
         setIsSubmitting(false);
+        // Clear the file input so the same file can be uploaded again
+        if(fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
       }
     };
     reader.readAsText(file);
@@ -64,8 +68,12 @@ const MasterListManager: React.FC = () => {
       try {
         await deleteUser(userIdToDelete);
         setMessage(`${userName}さんを削除しました。`);
-      } catch (error) {
-        setMessage('エラー: ユーザーの削除に失敗しました。');
+      } catch (error: any) {
+        if (error.message.includes("提出記録があるため")) {
+            setMessage(`エラー: ${error.message}`);
+        } else {
+            setMessage('エラー: ユーザーの削除に失敗しました。');
+        }
       }
     }
   };
@@ -101,7 +109,7 @@ const MasterListManager: React.FC = () => {
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-4">マスター名簿管理</h2>
       <p className="mb-4 text-gray-600 dark:text-gray-300">
-        CSVファイルをアップロードして、マスター名簿を更新します。ファイルには「名前」というヘッダーを持つ単一の列が必要です。新しいファイルをアップロードすると、既存のリストは上書きされます。
+        CSVファイルをアップロードして、マスター名簿を更新します。ファイルには「名前」というヘッダーを持つ単一の列が必要です。新しいファイルをアップロードすると、既存のリストは上書きされますが、提出履歴のあるユーザーは削除されません。
       </p>
       
       <div className="flex items-center space-x-4 mb-8">
@@ -119,7 +127,7 @@ const MasterListManager: React.FC = () => {
         >
           {isSubmitting ? '処理中...' : 'CSVをアップロード'}
         </button>
-        {message && <p className={`text-sm ${message.startsWith('エラー') ? 'text-red-500' : 'text-green-600'}`}>{message}</p>}
+        {message && <p className={`text-sm whitespace-pre-wrap ${message.startsWith('エラー') ? 'text-red-500' : 'text-green-600'}`}>{message}</p>}
       </div>
       
       <div className="mt-8 border-t dark:border-gray-700 pt-6">

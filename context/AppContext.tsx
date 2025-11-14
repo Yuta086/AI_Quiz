@@ -24,7 +24,7 @@ interface AppContextType {
   addUser: (name: string) => Promise<void>;
   updateUser: (id: string, name: string) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
-  replaceUsers: (newUsers: Omit<User, 'id'>[]) => Promise<void>;
+  replaceUsers: (newUsers: Omit<User, 'id'>[]) => Promise<string>;
   // Project Actions
   getProjectById: (id: string) => Promise<Project | null>;
   createProject: (project: Omit<Project, 'id' | 'createdAt' | 'questions'> & { questions: Omit<Question, 'id'>[] }) => Promise<void>;
@@ -175,12 +175,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [performAction]);
   
-  const replaceUsers = useCallback(async (newUsersData: Omit<User, 'id'>[]) => {
-    await performAction(async (client) => {
-        const createdUsers = await supabaseService.replaceUsers(client, newUsersData);
+  const replaceUsers = useCallback(async (newUsersData: Omit<User, 'id'>[]): Promise<string> => {
+    if (!supabaseClient) {
+        const errorMsg = "Supabaseが設定されていません。";
+        setError(errorMsg);
+        throw new Error(errorMsg);
+    }
+    try {
+        const { users: createdUsers, message } = await supabaseService.replaceUsers(supabaseClient, newUsersData);
         setUsers(createdUsers);
-    });
-  }, [performAction]);
+        return message;
+    } catch (e: any) {
+        setError(e.message);
+        throw e;
+    }
+  }, [supabaseClient]);
 
   // --- Project Actions ---
   const getProjectById = useCallback(async (id: string) => {

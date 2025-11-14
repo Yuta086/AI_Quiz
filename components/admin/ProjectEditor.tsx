@@ -95,10 +95,6 @@ const ProjectEditor: React.FC = () => {
     }, [id, getProjectById]);
 
     const handleGenerateQuiz = async () => {
-        if (!aiInstance) {
-            setError('クイズを生成するには、環境変数 VITE_GEMINI_API_KEY を設定する必要があります。');
-            return;
-        }
         if (!transcript) {
             setError('クイズを生成するには、文字起こしを入力してください。');
             return;
@@ -145,8 +141,7 @@ const ProjectEditor: React.FC = () => {
             if (id) {
                 await updateProject(id, { name, transcript, questions: questionsToSave, is_published: publishState });
             } else {
-                const url_slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-                await createProject({ name, transcript, url_slug, questions: questionsToSave, is_published: publishState });
+                await createProject({ name, transcript, questions: questionsToSave, is_published: publishState });
             }
             navigate('/admin/projects');
         } catch(err: any) {
@@ -190,7 +185,12 @@ const ProjectEditor: React.FC = () => {
                 <textarea value={transcript} onChange={e => setTranscript(e.target.value)} rows={10} className="w-full p-2 border rounded-md dark:bg-gray-900 dark:border-gray-600"/>
             </div>
 
-            <button onClick={handleGenerateQuiz} disabled={isLoading || isSaving} className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-hover disabled:bg-gray-400 transition-colors">
+            <button 
+                onClick={handleGenerateQuiz} 
+                disabled={isLoading || isSaving || !aiInstance} 
+                className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-hover disabled:bg-gray-400 transition-colors"
+                title={!aiInstance ? 'クイズを生成するにはAPIキーの設定が必要です。' : '文字起こしからクイズを生成します'}
+            >
                 {isLoading ? '生成中...' : 'AIでクイズを生成'}
             </button>
             

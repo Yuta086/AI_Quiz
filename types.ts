@@ -15,7 +15,6 @@ export interface Project {
   id: string;
   name: string;
   transcript: string;
-  url_slug: string;
   is_published: boolean;
   questions: Question[];
   createdAt: string;

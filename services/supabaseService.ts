@@ -3,6 +3,11 @@ import { User, Project, Submission, Attempt, Question } from '../types';
 
 type SupabaseQuestion = Omit<Question, 'id'> & { project_id: string };
 
+export interface ReplaceUsersResult {
+    users: User[];
+    message: string;
+}
+
 // --- User API ---
 export const getUsers = async (client: SupabaseClient): Promise<User[]> => {
     const { data, error } = await client.from('users').select('*').order('name');
@@ -23,20 +28,72 @@ export const updateUser = async (client: SupabaseClient, id: string, userData: P
 };
 
 export const deleteUser = async (client: SupabaseClient, id: string): Promise<void> => {
+    // Check for submissions before deleting
+    const { data: submissions, error: submissionError } = await client
+        .from('submissions')
+        .select('id')
+        .eq('user_id', id)
+        .limit(1);
+
+    if (submissionError) throw new Error(submissionError.message);
+    if (submissions && submissions.length > 0) {
+        throw new Error("提出記録があるため、このユーザーは削除できません。");
+    }
+
     const { error } = await client.from('users').delete().eq('id', id);
     if (error) throw new Error(error.message);
 };
 
-export const replaceUsers = async (client: SupabaseClient, usersData: Omit<User, 'id'>[]): Promise<User[]> => {
-    // A bit risky, but simplest way to replace all.
-    // In a real app, you might use an RPC function in Supabase.
-    const { error: deleteError } = await client.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-    if (deleteError) throw new Error(deleteError.message);
+export const replaceUsers = async (client: SupabaseClient, usersData: Omit<User, 'id'>[]): Promise<ReplaceUsersResult> => {
+    const { data: existingUsers, error: fetchUsersError } = await client.from('users').select('id, name');
+    if (fetchUsersError) throw new Error(fetchUsersError.message);
+
+    const { data: submissions, error: fetchSubmissionsError } = await client.from('submissions').select('user_id');
+    if (fetchSubmissionsError) throw new Error(fetchSubmissionsError.message);
     
-    const { data, error: insertError } = await client.from('users').insert(usersData).select();
-    if (insertError) throw new Error(insertError.message);
+    const submittedUserIds = new Set(submissions.map(s => s.user_id));
+    const newNames = new Set(usersData.map(u => u.name.trim()));
+    const existingUsersMap = new Map(existingUsers.map(u => [u.name.trim(), u.id]));
+
+    // Users to delete: in DB, not in new list
+    const usersToDelete = existingUsers.filter(u => !newNames.has(u.name.trim()));
+
+    let deletedCount = 0;
+    let protectedCount = 0;
     
-    return data || [];
+    const deletableUserIds: string[] = [];
+    for (const user of usersToDelete) {
+        if (submittedUserIds.has(user.id)) {
+            protectedCount++;
+        } else {
+            deletableUserIds.push(user.id);
+        }
+    }
+
+    if (deletableUserIds.length > 0) {
+        const { error: deleteError } = await client.from('users').delete().in('id', deletableUserIds);
+        if (deleteError) throw new Error(deleteError.message);
+        deletedCount = deletableUserIds.length;
+    }
+
+    // Users to add: in new list, not in DB
+    const usersToAdd = usersData.filter(u => !existingUsersMap.has(u.name.trim()));
+
+    if (usersToAdd.length > 0) {
+        const { error: insertError } = await client.from('users').insert(usersToAdd);
+        if (insertError) throw new Error(insertError.message);
+    }
+
+    // Get the final list of users
+    const { data: finalUsers, error: finalFetchError } = await client.from('users').select('*').order('name');
+    if (finalFetchError) throw new Error(finalFetchError.message);
+
+    let message = `${usersToAdd.length}人のユーザーを追加し、${deletedCount}人のユーザーを削除しました。`;
+    if (protectedCount > 0) {
+        message += `\n提出記録がある${protectedCount}人のユーザーは削除されませんでした。`;
+    }
+
+    return { users: finalUsers || [], message };
 };
 
 // --- Project API ---
