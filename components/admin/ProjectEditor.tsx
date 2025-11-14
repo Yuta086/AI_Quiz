@@ -150,7 +150,20 @@ const ProjectEditor: React.FC = () => {
             }
             navigate('/admin/projects');
         } catch(err: any) {
-            setError(err.message || '保存に失敗しました。');
+            console.error("Failed to save project:", err); // For developer debugging
+            let errorMessage = 'プロジェクトの保存に失敗しました。';
+            if (err && err.message) {
+                if (err.message.includes("violates row-level security policy")) {
+                     errorMessage += '\n\n[原因]\nデータベースへの書き込み権限がありません。SupabaseのRow Level Security (RLS) ポリシー設定で、`projects` テーブルと `questions` テーブルへのINSERT/UPDATEを許可してください。';
+                } else {
+                    errorMessage += `\n\n[原因]\n${err.message}`;
+                }
+                if(err.details) errorMessage += `\n\n[詳細]\n${err.details}`;
+                if(err.hint) errorMessage += `\n\n[ヒント]\n${err.hint}`;
+            } else {
+                errorMessage += '\n\n予期せぬエラーが発生しました。開発者コンソールをご確認ください。';
+            }
+            setError(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -181,7 +194,11 @@ const ProjectEditor: React.FC = () => {
                 {isLoading ? '生成中...' : 'AIでクイズを生成'}
             </button>
             
-            {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
+            {error && (
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+                    <p className="text-red-600 dark:text-red-300 text-sm whitespace-pre-wrap">{error}</p>
+                </div>
+            )}
             
             <div className="mt-8">
                 <h3 className="text-xl font-semibold mb-4">クイズの問題 ({questions.length}問)</h3>
