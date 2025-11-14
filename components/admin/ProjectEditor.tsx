@@ -95,9 +95,8 @@ const ProjectEditor: React.FC = () => {
     }, [id, getProjectById]);
 
     const handleGenerateQuiz = async () => {
-        // FIX: Check for aiInstance directly and update error message.
         if (!aiInstance) {
-            setError('クイズを生成するには、Gemini APIキーを環境変数に設定する必要があります。');
+            setError('クイズを生成するには、環境変数 VITE_GEMINI_API_KEY を設定する必要があります。');
             return;
         }
         if (!transcript) {

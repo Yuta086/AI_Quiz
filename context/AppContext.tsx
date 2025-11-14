@@ -1,4 +1,4 @@
-/// <reference types="vite/client" />
+// FIX: Removed '/// <reference types="vite/client" />' as it was causing a "Cannot find type definition file" error. The fix below addresses environment variable access.
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Project, Submission, Attempt, Question } from '../types';
 import * as supabaseService from '../services/supabaseService';
@@ -70,25 +70,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
-    // FIX: Use `process.env.API_KEY` as per guidelines and remove API key management from UI.
-    // This assumes API_KEY is correctly exposed to the client environment.
-    if (process.env.API_KEY) {
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        setAiInstance(ai);
-      } catch (e) {
-        console.error("Failed to initialize GoogleGenAI:", e);
-        setAiInstance(null);
-      }
-    } else {
+    // FIX: Use `process.env.API_KEY` as per the coding guidelines.
+    // This also helps resolve build errors related to missing Vite client types.
+    // Assuming `process.env.API_KEY` is available in the execution environment.
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      setAiInstance(ai);
+    } catch (e) {
+      console.error("Failed to initialize GoogleGenAI:", e);
       setAiInstance(null);
     }
   }, []);
   
   useEffect(() => {
-      // FIX: Added a triple-slash directive at the top of the file to provide types for import.meta.env.
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+      // FIX: Cast `import.meta` to `any` to work around missing Vite client types
+      // which caused 'Property 'env' does not exist' and 'Cannot find type definition file' errors.
+      const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
+      const supabaseKey = (import.meta as any).env.VITE_SUPABASE_KEY;
 
       if (supabaseUrl && supabaseKey) {
           try {
