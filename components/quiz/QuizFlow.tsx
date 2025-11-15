@@ -65,7 +65,7 @@ const QuizComplete: React.FC = () => {
 
 const QuizFlow: React.FC = () => {
     const { id: projectId } = useParams<{ id: string }>();
-    const { users, submissions, attempts, addSubmission, addAttempt, getProjectById } = useAppContext();
+    const { users, submissions, addSubmission, addAttempt, getProjectById, supabaseClient } = useAppContext();
     const [pageState, setPageState] = useState<'start' | 'taking' | 'complete'>('start');
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [project, setProject] = useState<Project | null>(null);
@@ -119,15 +119,27 @@ const QuizFlow: React.FC = () => {
     };
 
     const handleSubmit = async () => {
-        if (!project || !currentUserId) return;
-        
-        const userAttempts = attempts.filter(a => a.userId === currentUserId && a.projectId === project.id);
-        
+        if (!project || !currentUserId || !supabaseClient) {
+            throw new Error("提出処理に必要な情報が不足しています。");
+        }
+
+        // データベースから直接最新の受験回数を取得して、競合状態を回避する
+        const { count, error } = await supabaseClient
+            .from('attempts')
+            .select('*', { count: 'exact', head: true })
+            .eq('project_id', project.id)
+            .eq('user_id', currentUserId);
+
+        if (error) {
+            console.error("受験回数の取得に失敗しました:", error);
+            throw error;
+        }
+
         const newSubmission: Omit<Submission, 'id'> = {
             projectId: project.id,
             userId: currentUserId,
             submittedAt: new Date().toISOString(),
-            attempt_count: userAttempts.length + 1 // これから採点する今回の試行も含める
+            attempt_count: count ?? 0
         };
 
         await addSubmission(newSubmission);
