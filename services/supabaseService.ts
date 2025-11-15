@@ -8,6 +8,42 @@ export interface ReplaceUsersResult {
     message: string;
 }
 
+// --- Data Mapping Helpers ---
+
+const mapProjectFromDb = (dbProject: any): Project => {
+    if (!dbProject) return dbProject;
+    const { created_at, ...rest } = dbProject;
+    return {
+        ...rest,
+        createdAt: created_at,
+        // Ensure questions are present and correctly typed
+        questions: dbProject.questions || [],
+    } as Project;
+};
+
+const mapSubmissionFromDb = (dbSubmission: any): Submission => {
+    if (!dbSubmission) return dbSubmission;
+    const { project_id, user_id, submitted_at, ...rest } = dbSubmission;
+    return {
+        ...rest,
+        projectId: project_id,
+        userId: user_id,
+        submittedAt: submitted_at,
+    } as Submission;
+};
+
+const mapAttemptFromDb = (dbAttempt: any): Attempt => {
+    if (!dbAttempt) return dbAttempt;
+    const { project_id, user_id, attempted_at, ...rest } = dbAttempt;
+    return {
+        ...rest,
+        projectId: project_id,
+        userId: user_id,
+        attemptedAt: attempted_at,
+    } as Attempt;
+};
+
+
 // --- User API ---
 export const getUsers = async (client: SupabaseClient): Promise<User[]> => {
     const { data, error } = await client.from('users').select('*').order('name');
@@ -100,7 +136,7 @@ export const replaceUsers = async (client: SupabaseClient, usersData: Omit<User,
 export const getProjects = async (client: SupabaseClient): Promise<Project[]> => {
     const { data, error } = await client.from('projects').select('*, questions(*)').order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data as Project[]) || [];
+    return data?.map(mapProjectFromDb) || [];
 };
 
 export const getProjectById = async (client: SupabaseClient, id: string): Promise<Project | null> => {
@@ -109,7 +145,7 @@ export const getProjectById = async (client: SupabaseClient, id: string): Promis
         if (error.code === 'PGRST116') return null; // Not found
         throw new Error(error.message);
     }
-    return data as Project || null;
+    return mapProjectFromDb(data);
 };
 
 export const addProject = async (client: SupabaseClient, projectData: Omit<Project, 'id' | 'createdAt' | 'questions'> & { questions: Omit<Question, 'id'>[] }): Promise<Project> => {
@@ -172,24 +208,38 @@ export const deleteProject = async (client: SupabaseClient, id: string): Promise
 export const getSubmissions = async (client: SupabaseClient): Promise<Submission[]> => {
     const { data, error } = await client.from('submissions').select('*');
     if (error) throw new Error(error.message);
-    return data || [];
+    return data?.map(mapSubmissionFromDb) || [];
 };
 
 export const addSubmission = async (client: SupabaseClient, submissionData: Omit<Submission, 'id'>): Promise<Submission> => {
-    const { data, error } = await client.from('submissions').insert(submissionData).select().single();
+    const { projectId, userId, submittedAt, attempt_count } = submissionData;
+    const dbData = {
+        project_id: projectId,
+        user_id: userId,
+        submitted_at: submittedAt,
+        attempt_count: attempt_count
+    };
+    const { data, error } = await client.from('submissions').insert(dbData).select().single();
     if (error) throw new Error(error.message);
-    return data;
+    return mapSubmissionFromDb(data);
 };
 
 // --- Attempt API ---
 export const getAttempts = async (client: SupabaseClient): Promise<Attempt[]> => {
     const { data, error } = await client.from('attempts').select('*');
     if (error) throw new Error(error.message);
-    return data || [];
+    return data?.map(mapAttemptFromDb) || [];
 };
 
 export const addAttempt = async (client: SupabaseClient, attemptData: Omit<Attempt, 'id'>): Promise<Attempt> => {
-    const { data, error } = await client.from('attempts').insert(attemptData).select().single();
+    const { projectId, userId, score, attemptedAt } = attemptData;
+     const dbData = {
+        project_id: projectId,
+        user_id: userId,
+        score: score,
+        attempted_at: attemptedAt
+    };
+    const { data, error } = await client.from('attempts').insert(dbData).select().single();
     if (error) throw new Error(error.message);
-    return data;
+    return mapAttemptFromDb(data);
 };
