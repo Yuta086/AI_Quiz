@@ -4,7 +4,7 @@ import { Question } from '../../types';
 interface QuizTakerProps {
   projectTitle: string;
   questions: Question[];
-  onSubmit: () => void;
+  onSubmit: () => Promise<void>;
   onGrade: (score: number) => void;
   isStickyFooter?: boolean;
 }
@@ -13,6 +13,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ projectTitle, questions, onSubmit
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isAllAnswered = Object.keys(answers).length === questions.length;
   // A perfect score is only possible if there are questions to answer.
@@ -40,6 +41,17 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ projectTitle, questions, onSubmit
     setScore(0);
   };
   
+  const handleFinalSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+        await onSubmit();
+    } catch (error) {
+        console.error("Submission failed:", error);
+        alert("提出に失敗しました。もう一度お試しください。");
+        setIsSubmitting(false);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-3xl font-bold mb-6 text-center">{projectTitle}</h2>
@@ -106,8 +118,12 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ projectTitle, questions, onSubmit
             {isPerfectScore ? (
               <>
                 <p className="text-green-600 font-semibold text-lg">🎉 満点です！おめでとうございます！</p>
-                <button onClick={onSubmit} className="px-8 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-hover transition-all text-lg">
-                    提出する
+                <button 
+                  onClick={handleFinalSubmit}
+                  disabled={isSubmitting}
+                  className="px-8 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-hover disabled:bg-gray-400 transition-all text-lg"
+                >
+                    {isSubmitting ? '提出中...' : '提出する'}
                 </button>
               </>
             ) : (
