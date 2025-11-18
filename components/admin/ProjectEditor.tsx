@@ -232,7 +232,8 @@ const ProjectEditor: React.FC = () => {
                                 <QuizTaker
                                     projectTitle={name || '（無題のプロジェクト）'}
                                     questions={questionsForPreview}
-                                    onSubmit={() => alert('これはプレビューモードです。提出は記録されません。')}
+                                    // FIX: The `onSubmit` prop for QuizTaker expects a Promise. Making this function async satisfies the type requirement.
+                                    onSubmit={async () => alert('これはプレビューモードです。提出は記録されません。')}
                                     onGrade={() => { /* プレビューでは何もしない */ }}
                                     isStickyFooter={false}
                                 />

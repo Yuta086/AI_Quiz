@@ -4,6 +4,39 @@ import { useAppContext } from '../../context/AppContext';
 import QuizTaker from './QuizTaker';
 import { Project, User, Submission, Attempt } from '../../types';
 
+const ConfirmationModal: React.FC<{
+  userName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}> = ({ userName, onConfirm, onCancel }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4" onClick={onCancel}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="p-8 text-center">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">クイズ開始の確認</h3>
+          <p className="text-gray-600 dark:text-gray-300 mb-8">
+            <span className="font-bold text-lg text-primary dark:text-indigo-400">{userName}</span> さんとしてクイズを開始します。よろしいですか？
+          </p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={onCancel}
+              className="px-6 py-2 bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+            >
+              いいえ、戻ります
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors"
+            >
+              はい、開始します
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const QuizStart: React.FC<{
   onStart: (userId: string) => void;
   projectTitle: string;
@@ -13,6 +46,7 @@ const QuizStart: React.FC<{
 }> = ({ onStart, projectTitle, projectId, users, submissions }) => {
   const [selectedUser, setSelectedUser] = useState('');
   const [error, setError] = useState('');
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
   const availableUsers = users.filter(user => 
     !submissions.some(s => s.userId === user.id && s.projectId === projectId)
@@ -24,33 +58,49 @@ const QuizStart: React.FC<{
       return;
     }
     setError('');
-    onStart(selectedUser);
+    setIsConfirmModalOpen(true);
   };
+  
+  const handleConfirmStart = () => {
+    onStart(selectedUser);
+    setIsConfirmModalOpen(false);
+  };
+  
+  const selectedUserName = users.find(u => u.id === selectedUser)?.name || '';
 
   return (
-    <div className="text-center">
-      <h2 className="text-3xl font-bold mb-4">{projectTitle}</h2>
-      <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">クイズを始めるには、あなたの名前を選択してください。</p>
-      <div className="max-w-xs mx-auto">
-        <select
-          value={selectedUser}
-          onChange={(e) => setSelectedUser(e.target.value)}
-          className="w-full p-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-primary focus:border-primary"
-        >
-          <option value="">名前を選択...</option>
-          {availableUsers.map(user => (
-            <option key={user.id} value={user.id}>{user.name}</option>
-          ))}
-        </select>
-        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-        <button
-          onClick={handleStart}
-          className="w-full mt-6 px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all text-lg"
-        >
-          クイズを開始
-        </button>
+    <>
+      <div className="text-center">
+        <h2 className="text-3xl font-bold mb-4">{projectTitle}</h2>
+        <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">クイズを始めるには、あなたの名前を選択してください。</p>
+        <div className="max-w-xs mx-auto">
+          <select
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
+            className="w-full p-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-primary focus:border-primary"
+          >
+            <option value="">名前を選択...</option>
+            {availableUsers.map(user => (
+              <option key={user.id} value={user.id}>{user.name}</option>
+            ))}
+          </select>
+          {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+          <button
+            onClick={handleStart}
+            className="w-full mt-6 px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all text-lg"
+          >
+            クイズを開始
+          </button>
+        </div>
       </div>
-    </div>
+      {isConfirmModalOpen && (
+        <ConfirmationModal
+          userName={selectedUserName}
+          onConfirm={handleConfirmStart}
+          onCancel={() => setIsConfirmModalOpen(false)}
+        />
+      )}
+    </>
   );
 };
 
