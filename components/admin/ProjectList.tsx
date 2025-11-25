@@ -4,8 +4,15 @@ import { useAppContext } from '../../context/AppContext';
 import { Project } from '../../types';
 
 
-const ProjectCard: React.FC<{ project: Project; onDelete: (id: string) => void }> = ({ project, onDelete }) => {
+const ProjectCard: React.FC<{ 
+    project: Project; 
+    onDelete: (id: string) => void;
+    totalUsers: number;
+    submittedCount: number;
+}> = ({ project, onDelete, totalUsers, submittedCount }) => {
     const navigate = useNavigate();
+
+    const percentage = totalUsers > 0 ? Math.round((submittedCount / totalUsers) * 100) : 0;
 
     const copyUrl = () => {
         const url = `${window.location.origin}${window.location.pathname}#/quiz/${project.id}`;
@@ -14,6 +21,13 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (id: string) => void }
         });
     };
     
+    // プログレスバーの色を達成率によって変える（オプション）
+    const getBarColor = (p: number) => {
+        if (p >= 100) return 'bg-green-500';
+        if (p >= 50) return 'bg-blue-500';
+        return 'bg-blue-500'; // デフォルト
+    };
+
     return (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 flex flex-col justify-between transition-shadow hover:shadow-xl">
             <div>
@@ -23,12 +37,28 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (id: string) => void }
                         {project.is_published ? '公開中' : '下書き'}
                     </span>
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                     作成日: {new Date(project.createdAt).toLocaleDateString()}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                     {project.questions.length} 問
                 </p>
+
+                {/* 回答率プログレスバー */}
+                <div className="mb-4">
+                    <div className="flex justify-between items-end mb-1">
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">回答率</span>
+                        <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                            {percentage}% ({submittedCount}/{totalUsers})
+                        </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                        <div 
+                            className={`${getBarColor(percentage)} h-2.5 rounded-full transition-all duration-500 ease-out`} 
+                            style={{ width: `${percentage}%` }}
+                        ></div>
+                    </div>
+                </div>
             </div>
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex flex-wrap gap-2 justify-end">
                 {project.is_published && (
@@ -51,7 +81,7 @@ const ProjectCard: React.FC<{ project: Project; onDelete: (id: string) => void }
 };
 
 const ProjectList: React.FC = () => {
-  const { projects, deleteProject } = useAppContext();
+  const { projects, deleteProject, users, submissions } = useAppContext();
 
   const handleDelete = async (id: string) => {
     if (window.confirm('このプロジェクトを本当に削除しますか？この操作は元に戻せません。')) {
@@ -64,6 +94,14 @@ const ProjectList: React.FC = () => {
   };
 
   const sortedProjects = [...projects].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const getSubmittedCount = (projectId: string) => {
+      // 指定されたプロジェクトIDに対する提出記録をフィルタリング
+      const projectSubmissions = submissions.filter(s => s.projectId === projectId);
+      // 重複しないユーザーIDのセットを作成してカウント
+      const uniqueUsers = new Set(projectSubmissions.map(s => s.userId));
+      return uniqueUsers.size;
+  };
 
   return (
     <div>
@@ -79,7 +117,13 @@ const ProjectList: React.FC = () => {
       {sortedProjects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedProjects.map(project => (
-            <ProjectCard key={project.id} project={project} onDelete={handleDelete} />
+            <ProjectCard 
+                key={project.id} 
+                project={project} 
+                onDelete={handleDelete} 
+                totalUsers={users.length}
+                submittedCount={getSubmittedCount(project.id)}
+            />
           ))}
         </div>
       ) : (
