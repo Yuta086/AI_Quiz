@@ -2,6 +2,7 @@
 export interface User {
   id: string;
   name: string;
+  role?: 'employee' | 'intern'; // Defaults to 'employee' if undefined
 }
 
 export interface Question {

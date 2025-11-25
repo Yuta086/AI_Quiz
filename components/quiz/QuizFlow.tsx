@@ -45,11 +45,21 @@ const QuizStart: React.FC<{
   submissions: Submission[];
 }> = ({ onStart, projectTitle, projectId, users, submissions }) => {
   const [selectedUser, setSelectedUser] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-  const availableUsers = users.filter(user => 
-    !submissions.some(s => s.userId === user.id && s.projectId === projectId)
+  // Filter users based on role and submission status
+  const availableUsers = users.filter(user => {
+    // Interns can always take the quiz, even if they have submitted
+    if (user.role === 'intern') return true;
+    
+    // Employees can only take the quiz if they haven't submitted yet
+    return !submissions.some(s => s.userId === user.id && s.projectId === projectId);
+  });
+
+  const filteredUsers = availableUsers.filter(user => 
+    user.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleStart = () => {
@@ -73,21 +83,52 @@ const QuizStart: React.FC<{
       <div className="text-center">
         <h2 className="text-3xl font-bold mb-4">{projectTitle}</h2>
         <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">クイズを始めるには、あなたの名前を選択してください。</p>
-        <div className="max-w-xs mx-auto">
-          <select
-            value={selectedUser}
-            onChange={(e) => setSelectedUser(e.target.value)}
-            className="w-full p-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-primary focus:border-primary"
-          >
-            <option value="">名前を選択...</option>
-            {availableUsers.map(user => (
-              <option key={user.id} value={user.id}>{user.name}</option>
-            ))}
-          </select>
+        
+        <div className="max-w-md mx-auto">
+          <div className="relative mb-4 text-left">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+            </div>
+            <input
+                type="text"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-primary focus:border-primary dark:bg-gray-700 dark:border-gray-600"
+                placeholder="名前を検索..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="border border-gray-200 dark:border-gray-600 rounded-lg max-h-64 overflow-y-auto mb-4 bg-white dark:bg-gray-700 text-left">
+            {filteredUsers.length > 0 ? (
+                <ul className="divide-y divide-gray-200 dark:divide-gray-600">
+                    {filteredUsers.map(user => (
+                        <li 
+                            key={user.id} 
+                            onClick={() => setSelectedUser(user.id)}
+                            className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 flex justify-between items-center transition-colors ${selectedUser === user.id ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-inset ring-primary' : ''}`}
+                        >
+                            <span className="font-medium">{user.name}</span>
+                            {user.role === 'intern' && (
+                                <span className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded-full">
+                                    インターン
+                                </span>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                <p className="p-4 text-center text-gray-500 dark:text-gray-400">該当するユーザーが見つかりません。</p>
+            )}
+          </div>
+
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+          
           <button
             onClick={handleStart}
-            className="w-full mt-6 px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all text-lg"
+            disabled={!selectedUser}
+            className="w-full mt-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:bg-gray-400 disabled:cursor-not-allowed transition-all text-lg"
           >
             クイズを開始
           </button>
@@ -144,12 +185,19 @@ const QuizFlow: React.FC = () => {
 
     useEffect(() => {
         if(currentUserId && project) {
+            // Check if user is an employee and has submitted
+            const currentUser = users.find(u => u.id === currentUserId);
             const hasSubmitted = submissions.some(s => s.userId === currentUserId && s.projectId === project.id);
-            if (hasSubmitted) {
+            
+            // Only redirect to complete screen if user is Employee (not Intern) and has submitted.
+            // Interns can retry, so we don't block them based on submission existence.
+            // However, after they just pressed submit (handleSubmit), we show complete.
+            // This Effect handles initial load or state updates.
+            if (currentUser?.role !== 'intern' && hasSubmitted) {
                 setPageState('complete');
             }
         }
-    }, [currentUserId, project, submissions]);
+    }, [currentUserId, project, submissions, users]);
 
     const handleStartQuiz = (userId: string) => {
         setCurrentUserId(userId);
@@ -193,7 +241,13 @@ const QuizFlow: React.FC = () => {
         };
 
         await addSubmission(newSubmission);
+        
+        // Show complete screen
         setPageState('complete');
+        
+        // For Interns, we might want to allow them to go back to start?
+        // The current implementation stays on 'complete'.
+        // If they refresh, logic in useEffect will allow them to start again if role is intern.
     };
     
     const renderContent = () => {
@@ -217,7 +271,25 @@ const QuizFlow: React.FC = () => {
             case 'taking':
                 return <QuizTaker projectTitle={project.name} questions={project.questions} onSubmit={handleSubmit} onGrade={handleGrade} isStickyFooter={true} />;
             case 'complete':
-                return <QuizComplete />;
+                const currentUser = users.find(u => u.id === currentUserId);
+                return (
+                    <div className="space-y-6">
+                        <QuizComplete />
+                         {currentUser?.role === 'intern' && (
+                            <div className="text-center">
+                                <button 
+                                    onClick={() => {
+                                        setCurrentUserId(null);
+                                        setPageState('start');
+                                    }}
+                                    className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
+                                >
+                                    トップに戻る (インターン用)
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                );
         }
     };
 

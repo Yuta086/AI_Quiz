@@ -9,27 +9,42 @@ const SubmissionStatus: React.FC = () => {
     
     const project = projects.find(p => p.id === projectId);
 
-    const { submittedUsers, notSubmittedUsers } = useMemo(() => {
-        if (!projectId) return { submittedUsers: [], notSubmittedUsers: [] };
+    const { submittedUsers, notSubmittedUsers, responseRate, totalEmployees, submittedEmployeeCount } = useMemo(() => {
+        if (!projectId) return { submittedUsers: [], notSubmittedUsers: [], responseRate: 0, totalEmployees: 0, submittedEmployeeCount: 0 };
 
         const projectSubmissions = submissions.filter(s => s.projectId === projectId);
         const submittedUserIds = new Set(projectSubmissions.map(s => s.userId));
         
+        // Users who have submitted
         const submitted = projectSubmissions.map(submission => {
             const user = users.find(u => u.id === submission.userId);
             return {
                 name: user ? user.name : '不明なユーザー',
+                role: user?.role,
                 submittedAt: new Date(submission.submittedAt).toLocaleString(),
                 attemptCount: submission.attempt_count,
             };
         }).sort((a,b) => a.name.localeCompare(b.name));
 
+        // Users who haven't submitted (Excluding Interns)
         const notSubmitted = users
-            .filter(u => !submittedUserIds.has(u.id))
-            .map(user => ({ name: user.name }))
+            .filter(u => !submittedUserIds.has(u.id) && u.role !== 'intern') // Exclude interns from not-submitted list
+            .map(user => ({ name: user.name, role: user.role }))
             .sort((a,b) => a.name.localeCompare(b.name));
+            
+        // Calculate Employee Response Rate
+        const employees = users.filter(u => u.role !== 'intern');
+        const totalEmp = employees.length;
+        const submittedEmp = employees.filter(u => submittedUserIds.has(u.id)).length;
+        const rate = totalEmp > 0 ? Math.round((submittedEmp / totalEmp) * 100) : 0;
         
-        return { submittedUsers: submitted, notSubmittedUsers: notSubmitted };
+        return { 
+            submittedUsers: submitted, 
+            notSubmittedUsers: notSubmitted, 
+            responseRate: rate,
+            totalEmployees: totalEmp,
+            submittedEmployeeCount: submittedEmp
+        };
 
     }, [projectId, users, submissions, attempts]);
     
@@ -49,7 +64,14 @@ const SubmissionStatus: React.FC = () => {
                     {data.map((row, index) => (
                         <tr key={index}>
                             {headers.map(header => (
-                                <td key={header.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{row[header.key]}</td>
+                                <td key={header.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                                    {row[header.key]}
+                                    {header.key === 'name' && row.role === 'intern' && (
+                                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                            インターン
+                                        </span>
+                                    )}
+                                </td>
                             ))}
                         </tr>
                     ))}
@@ -64,6 +86,19 @@ const SubmissionStatus: React.FC = () => {
             <h2 className="text-2xl font-bold mb-2">提出状況</h2>
             <h3 className="text-lg text-gray-600 dark:text-gray-300 mb-6">{project.name}</h3>
 
+            <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">社員回答率 (インターン除く)</span>
+                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{responseRate}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${responseRate}%` }}></div>
+                </div>
+                <div className="text-right text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    {submittedEmployeeCount} / {totalEmployees} 人
+                </div>
+            </div>
+
             <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
                 <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button
@@ -76,7 +111,7 @@ const SubmissionStatus: React.FC = () => {
                         onClick={() => setActiveTab('not-submitted')}
                         className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'not-submitted' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
                     >
-                        未提出 ({notSubmittedUsers.length})
+                        未提出 (社員のみ) ({notSubmittedUsers.length})
                     </button>
                 </nav>
             </div>

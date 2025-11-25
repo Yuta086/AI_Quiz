@@ -21,7 +21,7 @@ interface AppContextType {
   isSupabaseConfigured: boolean;
 
   // User Actions
-  addUser: (name: string) => Promise<void>;
+  addUser: (user: Omit<User, 'id'>) => Promise<void>;
   updateUser: (id: string, name: string) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   replaceUsers: (newUsers: Omit<User, 'id'>[]) => Promise<string>;
@@ -154,9 +154,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
   // --- User Actions ---
-  const addUser = useCallback(async (name: string) => {
+  const addUser = useCallback(async (user: Omit<User, 'id'>) => {
     await performAction(async (client) => {
-        const newUser = await supabaseService.addUser(client, { name });
+        const newUser = await supabaseService.addUser(client, user);
         setUsers(prev => [...prev, newUser]);
     });
   }, [performAction]);
