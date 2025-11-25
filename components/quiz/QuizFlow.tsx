@@ -39,22 +39,19 @@ const ConfirmationModal: React.FC<{
 
 const QuizStart: React.FC<{
   onStart: (userId: string) => void;
+  onStartGuest: () => void;
   projectTitle: string;
   projectId: string;
   users: User[];
   submissions: Submission[];
-}> = ({ onStart, projectTitle, projectId, users, submissions }) => {
+}> = ({ onStart, onStartGuest, projectTitle, projectId, users, submissions }) => {
   const [selectedUser, setSelectedUser] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-  // Filter users based on role and submission status
+  // Filter users who haven't submitted yet
   const availableUsers = users.filter(user => {
-    // Interns can always take the quiz, even if they have submitted
-    if (user.role === 'intern') return true;
-    
-    // Employees can only take the quiz if they haven't submitted yet
     return !submissions.some(s => s.userId === user.id && s.projectId === projectId);
   });
 
@@ -110,11 +107,6 @@ const QuizStart: React.FC<{
                             className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 flex justify-between items-center transition-colors ${selectedUser === user.id ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-inset ring-primary' : ''}`}
                         >
                             <span className="font-medium">{user.name}</span>
-                            {user.role === 'intern' && (
-                                <span className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded-full">
-                                    インターン
-                                </span>
-                            )}
                         </li>
                     ))}
                 </ul>
@@ -132,6 +124,19 @@ const QuizStart: React.FC<{
           >
             クイズを開始
           </button>
+
+          <div className="relative flex py-5 items-center">
+            <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+            <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">または</span>
+            <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+          </div>
+
+          <button
+            onClick={onStartGuest}
+            className="w-full px-6 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 font-semibold rounded-lg shadow-sm hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition-all"
+          >
+            ゲストとして開始
+          </button>
         </div>
       </div>
       {isConfirmModalOpen && (
@@ -145,11 +150,25 @@ const QuizStart: React.FC<{
   );
 };
 
-const QuizComplete: React.FC = () => {
+const QuizComplete: React.FC<{ isGuest: boolean; onRetry: () => void }> = ({ isGuest, onRetry }) => {
     return (
         <div className="text-center">
-            <h2 className="text-3xl font-bold mb-4 text-green-500">提出完了！</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300">クイズお疲れ様でした。結果は管理者に送信されました。</p>
+            <h2 className="text-3xl font-bold mb-4 text-green-500">
+                {isGuest ? '体験完了！' : '提出完了！'}
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 mb-8">
+                {isGuest 
+                    ? 'クイズの体験お疲れ様でした。ゲストモードのため結果は保存されません。' 
+                    : 'クイズお疲れ様でした。結果は管理者に送信されました。'}
+            </p>
+            {isGuest && (
+                 <button 
+                    onClick={onRetry}
+                    className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
+                >
+                    トップに戻る
+                </button>
+            )}
         </div>
     );
 };
@@ -159,6 +178,7 @@ const QuizFlow: React.FC = () => {
     const { users, submissions, addSubmission, addAttempt, getProjectById, supabaseClient } = useAppContext();
     const [pageState, setPageState] = useState<'start' | 'taking' | 'complete'>('start');
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+    const [isGuest, setIsGuest] = useState(false);
     const [project, setProject] = useState<Project | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -184,27 +204,31 @@ const QuizFlow: React.FC = () => {
     }, [projectId, getProjectById]);
 
     useEffect(() => {
-        if(currentUserId && project) {
-            // Check if user is an employee and has submitted
-            const currentUser = users.find(u => u.id === currentUserId);
+        if(currentUserId && project && !isGuest) {
+            // Check if user has submitted
             const hasSubmitted = submissions.some(s => s.userId === currentUserId && s.projectId === project.id);
-            
-            // Only redirect to complete screen if user is Employee (not Intern) and has submitted.
-            // Interns can retry, so we don't block them based on submission existence.
-            // However, after they just pressed submit (handleSubmit), we show complete.
-            // This Effect handles initial load or state updates.
-            if (currentUser?.role !== 'intern' && hasSubmitted) {
+            if (hasSubmitted) {
                 setPageState('complete');
             }
         }
-    }, [currentUserId, project, submissions, users]);
+    }, [currentUserId, project, submissions, isGuest]);
 
     const handleStartQuiz = (userId: string) => {
+        setIsGuest(false);
         setCurrentUserId(userId);
         setPageState('taking');
     };
 
+    const handleStartGuest = () => {
+        setIsGuest(true);
+        setCurrentUserId(null);
+        setPageState('taking');
+    };
+
     const handleGrade = async (score: number) => {
+      // Guest users do not record attempts
+      if (isGuest) return;
+
       if (project && currentUserId) {
         const newAttempt: Omit<Attempt, 'id'> = {
           projectId: project.id,
@@ -217,6 +241,11 @@ const QuizFlow: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        if (isGuest) {
+            setPageState('complete');
+            return;
+        }
+
         if (!project || !currentUserId || !supabaseClient) {
             throw new Error("提出処理に必要な情報が不足しています。");
         }
@@ -244,10 +273,6 @@ const QuizFlow: React.FC = () => {
         
         // Show complete screen
         setPageState('complete');
-        
-        // For Interns, we might want to allow them to go back to start?
-        // The current implementation stays on 'complete'.
-        // If they refresh, logic in useEffect will allow them to start again if role is intern.
     };
     
     const renderContent = () => {
@@ -263,6 +288,7 @@ const QuizFlow: React.FC = () => {
             case 'start':
                 return <QuizStart 
                             onStart={handleStartQuiz} 
+                            onStartGuest={handleStartGuest}
                             projectTitle={project.name} 
                             projectId={project.id}
                             users={users}
@@ -271,25 +297,7 @@ const QuizFlow: React.FC = () => {
             case 'taking':
                 return <QuizTaker projectTitle={project.name} questions={project.questions} onSubmit={handleSubmit} onGrade={handleGrade} isStickyFooter={true} />;
             case 'complete':
-                const currentUser = users.find(u => u.id === currentUserId);
-                return (
-                    <div className="space-y-6">
-                        <QuizComplete />
-                         {currentUser?.role === 'intern' && (
-                            <div className="text-center">
-                                <button 
-                                    onClick={() => {
-                                        setCurrentUserId(null);
-                                        setPageState('start');
-                                    }}
-                                    className="px-6 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
-                                >
-                                    トップに戻る (インターン用)
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                );
+                return <QuizComplete isGuest={isGuest} onRetry={() => setPageState('start')} />;
         }
     };
 
