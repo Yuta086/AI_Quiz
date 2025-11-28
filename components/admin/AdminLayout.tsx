@@ -8,7 +8,7 @@ const navItems = [
 ];
 
 const AdminLayout: React.FC = () => {
-  const { aiInstance, isSupabaseConfigured } = useAppContext();
+  const { isGeminiConfigured, isSupabaseConfigured } = useAppContext();
   
   return (
     <div className="min-h-screen flex flex-col">
@@ -19,7 +19,7 @@ const AdminLayout: React.FC = () => {
               AIクイズ管理画面
             </h1>
             <div className="flex items-center space-x-4">
-               {!aiInstance && isSupabaseConfigured && (
+               {!isGeminiConfigured && isSupabaseConfigured && (
                  <div className="flex items-center bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300 text-xs font-bold px-2 py-1 rounded-md animate-pulse">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.636-1.026 2.073-1.026 2.709 0l5.836 9.42c.622 1.004-.16 2.273-1.355 2.273H3.776c-1.194 0-1.977-1.269-1.355-2.273l5.836-9.42zM10 14a1 1 0 100-2 1 1 0 000 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
                     <span>APIキー未設定</span>

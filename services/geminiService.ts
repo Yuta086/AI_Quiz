@@ -1,78 +1,53 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { Question } from '../types';
+import type { Question } from "../types";
 
-const quizGenerationSchema = {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        question_text: {
-          type: Type.STRING,
-          description: "クイズの問題文",
-        },
-        options: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.STRING,
-          },
-          description: "4つの選択肢文字列の配列",
-        },
-        correct_answer: {
-          type: Type.INTEGER,
-          description: "正解の選択肢を示す1から4の番号（1始まり）",
-        },
-      },
-      required: ["question_text", "options", "correct_answer"],
-    },
+export interface GenerateQuizPayload {
+  transcript: string;
+  questionCount?: number;
+}
+
+const handleResponse = async (response: Response) => {
+  const data = await response
+    .json()
+    .catch(() => ({ error: "クイズの生成に失敗しました。" }));
+
+  if (!response.ok) {
+    throw new Error(data?.error ?? "クイズの生成に失敗しました。");
+  }
+
+  return data;
 };
 
-export const generateQuizFromTranscript = async (
-  aiInstance: GoogleGenAI | null,
-  transcript: string,
-  questionCount: number = 5
-): Promise<Omit<Question, 'id'>[]> => {
-  if (!aiInstance) {
-    throw new Error("Gemini APIキーが設定されていません。環境変数 VITE_GEMINI_API_KEY を設定してください。");
+export const generateQuizFromTranscript = async ({
+  transcript,
+  questionCount = 5,
+}: GenerateQuizPayload): Promise<Omit<Question, "id">[]> => {
+  if (!transcript || !transcript.trim()) {
+    throw new Error("文字起こしを入力してください。");
   }
-  
+
+  const response = await fetch("/api/generate-quiz", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ transcript, questionCount }),
+  });
+
+  const data = await handleResponse(response);
+  if (!Array.isArray(data?.questions)) {
+    throw new Error("AIが問題の配列を返しませんでした。");
+  }
+
+  return data.questions;
+};
+
+export const fetchGeminiStatus = async (): Promise<boolean> => {
   try {
-    const prompt = `以下の文字起こしを基に、${questionCount}個の多肢選択式のクイズ問題を生成してください。各問題は、文字起こしの中の重要な概念の理解度を問うものにしてください。各問題には、選択肢を4つずつ用意してください。
-
-文字起こし:
----
-${transcript}
----
-`;
-
-    const response = await aiInstance.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: quizGenerationSchema,
-            temperature: 0.5,
-        },
-    });
-
-    const jsonString = response.text.trim();
-    const generatedQuestions = JSON.parse(jsonString) as Omit<Question, 'id'>[];
-
-    // Validate the generated questions
-    if (!Array.isArray(generatedQuestions)) {
-        throw new Error("AIが問題の配列を返しませんでした。");
-    }
-
-    return generatedQuestions.filter(q => 
-        q.question_text && 
-        Array.isArray(q.options) && 
-        q.options.length === 4 && 
-        typeof q.correct_answer === 'number' && 
-        q.correct_answer >= 1 && 
-        q.correct_answer <= 4
-    );
-
+    const response = await fetch("/api/generate-quiz", { method: "GET" });
+    const data = await response.json().catch(() => ({ ready: false }));
+    return Boolean(data?.ready);
   } catch (error) {
-    console.error("Error generating quiz from transcript:", error);
-    throw new Error("クイズの生成に失敗しました。文字起こしを確認するか、もう一度お試しください。");
+    console.warn("Failed to determine Gemini API status:", error);
+    return false;
   }
 };

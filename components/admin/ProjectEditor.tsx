@@ -64,7 +64,7 @@ const EditableQuestion: React.FC<{
 const ProjectEditor: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getProjectById, createProject, updateProject, aiInstance } = useAppContext();
+    const { getProjectById, createProject, updateProject, isGeminiConfigured } = useAppContext();
     
     const [name, setName] = useState('');
     const [transcript, setTranscript] = useState('');
@@ -99,10 +99,14 @@ const ProjectEditor: React.FC = () => {
             setError('クイズを生成するには、文字起こしを入力してください。');
             return;
         }
+        if (!isGeminiConfigured) {
+            setError('Gemini APIキーが設定されていません。');
+            return;
+        }
         setIsLoading(true);
         setError('');
         try {
-            const generated = await generateQuizFromTranscript(aiInstance, transcript);
+            const generated = await generateQuizFromTranscript({ transcript });
             setQuestions(prev => [...prev, ...generated]);
         } catch (err: any) {
             setError(err.message || '不明なエラーが発生しました。');
@@ -187,9 +191,9 @@ const ProjectEditor: React.FC = () => {
 
             <button 
                 onClick={handleGenerateQuiz} 
-                disabled={isLoading || isSaving || !aiInstance} 
+                disabled={isLoading || isSaving || !isGeminiConfigured} 
                 className="px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary-hover disabled:bg-gray-400 transition-colors"
-                title={!aiInstance ? 'クイズを生成するにはAPIキーの設定が必要です。' : '文字起こしからクイズを生成します'}
+                title={!isGeminiConfigured ? 'クイズを生成するにはAPIキーの設定が必要です。' : '文字起こしからクイズを生成します'}
             >
                 {isLoading ? '生成中...' : 'AIでクイズを生成'}
             </button>

@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Project, Submission, Attempt, Question } from '../types';
 import * as supabaseService from '../services/supabaseService';
-import { GoogleGenAI } from '@google/genai';
+import { fetchGeminiStatus } from '../services/geminiService';
 import { SupabaseClient, createClient } from '@supabase/supabase-js';
 
 interface AppContextType {
@@ -12,9 +12,9 @@ interface AppContextType {
   attempts: Attempt[];
   isLoading: boolean;
   error: string | null;
-  
+
   // Gemini API
-  aiInstance: GoogleGenAI | null;
+  isGeminiConfigured: boolean;
 
   // Supabase
   supabaseClient: SupabaseClient | null;
@@ -64,7 +64,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [error, setError] = useState<string | null>(null);
 
   // Gemini API State
-  const [aiInstance, setAiInstance] = useState<GoogleGenAI | null>(null);
+  const [isGeminiConfigured, setIsGeminiConfigured] = useState(false);
 
   // Supabase State
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
@@ -74,21 +74,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // This allows accessing Vite's environment variables (`import.meta.env`) on the client-side.
     const env = (import.meta as any).env;
 
-    // Initialize Gemini AI client
-    const geminiApiKey = env.VITE_GEMINI_API_KEY;
-    if (geminiApiKey) {
-        try {
-            const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-            setAiInstance(ai);
-        } catch (e) {
-            console.error("Failed to initialize GoogleGenAI:", e);
-            setAiInstance(null);
-        }
-    } else {
-        console.warn("VITE_GEMINI_API_KEY is not set in environment variables.");
-        setAiInstance(null);
-    }
-    
     // Initialize Supabase client
     const supabaseUrl = env.VITE_SUPABASE_URL;
     const supabaseKey = env.VITE_SUPABASE_KEY;
@@ -104,6 +89,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
         setSupabaseClient(null);
     }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkApiStatus = async () => {
+      const ready = await fetchGeminiStatus();
+      if (isMounted) {
+        setIsGeminiConfigured(ready);
+      }
+    };
+    checkApiStatus();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const isSupabaseConfigured = !!supabaseClient;
@@ -234,7 +233,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const value = {
     users, projects, submissions, attempts, isLoading, error,
-    aiInstance,
+    isGeminiConfigured,
     supabaseClient, isSupabaseConfigured,
     addUser, updateUser, deleteUser, replaceUsers,
     getProjectById, createProject, updateProject, deleteProject,
