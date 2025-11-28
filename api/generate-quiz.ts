@@ -1,53 +1,53 @@
 import { generateQuizQuestions } from "../server/geminiQuiz";
 
-const sendJson = (res: any, status: number, payload: Record<string, unknown>) => {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Cache-Control", "no-store");
-  res.end(JSON.stringify(payload));
+export const config = {
+  runtime: "edge",
 };
 
-const parseBody = (req: any) => {
-  if (!req?.body) {
+const sendJson = (status: number, payload: Record<string, unknown>) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+
+const parseRequestBody = async (request: Request) => {
+  try {
+    return await request.json();
+  } catch {
     return {};
   }
-  if (typeof req.body === "string") {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return {};
-    }
-  }
-  return req.body;
 };
 
-export default async function handler(req: any, res: any) {
+export default async function handler(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
 
-  if (req.method === "GET") {
-    return sendJson(res, 200, { ready: Boolean(apiKey) });
+  if (request.method === "GET") {
+    return sendJson(200, { ready: Boolean(apiKey) });
   }
 
-  if (req.method !== "POST") {
-    return sendJson(res, 405, { error: "Method not allowed." });
+  if (request.method !== "POST") {
+    return sendJson(405, { error: "Method not allowed." });
   }
 
   if (!apiKey) {
-    return sendJson(res, 503, { error: "Gemini APIキーが設定されていません。" });
+    return sendJson(503, { error: "Gemini APIキーが設定されていません。" });
   }
 
   try {
-    const body = parseBody(req);
-    const { transcript, questionCount } = body;
+    const body = await parseRequestBody(request);
+    const { transcript, questionCount } = body as { transcript?: string; questionCount?: number };
 
     if (typeof transcript !== "string" || !transcript.trim()) {
-      return sendJson(res, 400, { error: "文字起こしは必須です。" });
+      return sendJson(400, { error: "文字起こしは必須です。" });
     }
 
     const questions = await generateQuizQuestions(apiKey, { transcript, questionCount });
-    return sendJson(res, 200, { questions });
+    return sendJson(200, { questions });
   } catch (error: any) {
     console.error("generate-quiz error:", error);
-    return sendJson(res, 500, { error: error?.message ?? "クイズの生成に失敗しました。" });
+    return sendJson(500, { error: error?.message ?? "クイズの生成に失敗しました。" });
   }
 }
